@@ -10,31 +10,33 @@ class AuthController extends Controller
 {
     // POST /api/login
     public function login(Request $request)
-    {
-        $request->validate([
-            'email'    => 'required|email',
-            'password' => 'required|string',
-        ]);
+{
+    $request->validate([
+        'email'    => 'required|email',
+        'password' => 'required|string',
+    ]);
 
-        $user = User::where('email', $request->email)->first();
+    $user = User::with('departamento')->where('email', $request->email)->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'message' => 'Credenciales incorrectas'
-            ], 401);
-        }
-
-        $token = $user->createToken('auth_token')->plainTextToken;
-
+    if (!$user || !Hash::check($request->password, $user->password)) {
         return response()->json([
-            'token' => $token,
-            'user'  => [
-                'id'   => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-            ]
-        ]);
+            'message' => 'Credenciales incorrectas'
+        ], 401);
     }
+
+    $token = $user->createToken('auth_token')->plainTextToken;
+
+    return response()->json([
+        'token' => $token,
+        'user'  => [
+            'id'            => $user->id,
+            'name'          => $user->name,
+            'email'         => $user->email,
+            'rol'           => $user->rol,
+            'departamento'  => $user->departamento,
+        ]
+    ]);
+}
 
     // POST /api/logout
     public function logout(Request $request)
