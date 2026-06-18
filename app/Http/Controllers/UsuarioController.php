@@ -64,25 +64,28 @@ class UsuarioController extends Controller
 
 
     public function update(Request $request, User $usuario)
-    {
-        $request->validate([
-            'name'            => 'string|max:255',
-            'email'           => 'email|unique:users,email,' . $usuario->id,
-            'password'        => 'nullable|string|min:8',
-            'rol'             => 'in:admin,residente',
-            'departamento_id' => 'nullable|exists:departamentos,id',
-        ]);
+{
+    $request->validate([
+        'name'            => 'string|max:255',
+        'email'           => 'email|unique:users,email,' . $usuario->id,
+        'password'        => 'nullable|string|min:8',
+        'rol'             => 'in:admin,residente',
+        'departamento_id' => 'nullable|exists:departamentos,id',
+    ]);
 
-        $datos = $request->only(['name', 'email', 'rol', 'departamento_id']);
+    $datos = $request->only(['name', 'email', 'rol', 'departamento_id']);
 
-        if ($request->filled('password')) {
-            $datos['password'] = Hash::make($request->password);
-        }
+    if ($request->filled('password')) {
+        $datos['password'] = Hash::make($request->password);
 
-        $usuario->update($datos);
 
-        return response()->json($usuario->load('departamento'));
+        $usuario->tokens()->delete();
     }
+
+    $usuario->update($datos);
+
+    return response()->json($usuario->load('departamento'));
+}
 
 
     public function destroy(User $usuario)

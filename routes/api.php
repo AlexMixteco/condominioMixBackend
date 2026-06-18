@@ -13,6 +13,8 @@ use App\Http\Controllers\UsuarioController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 Route::post('/broadcasting/auth', function () {
     return Broadcast::auth(request());
@@ -45,6 +47,14 @@ Route::post('/email/resend', function (Request $request) {
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+
+
+    Route::get('/sesiones', [AuthController::class, 'sesiones']);
+    Route::delete('/sesiones/{id}', [AuthController::class, 'cerrarSesion']);
+    Route::delete('/sesiones', [AuthController::class, 'cerrarTodasSesiones']);
+
+
+    Route::put('/cambiar-password', [AuthController::class, 'cambiarPassword']);
 
     Route::get('/mensajes', [MensajeController::class, 'index']);
     Route::post('/mensajes', [MensajeController::class, 'store']);
