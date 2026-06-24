@@ -6,8 +6,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Auth\Events\Registered;
-use Illuminate\Support\Facades\Password;
-use Illuminate\Auth\Events\PasswordReset;
+use App\Models\PasswordResetCode;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Mail\Message;
 use Illuminate\Support\Str;
 
 class AuthController extends Controller
@@ -99,62 +100,93 @@ public function register(Request $request)
     }
 
 
+
 public function forgotPassword(Request $request)
 {
     $request->validate([
-        'email' => 'required|email',
+        'email' => 'required|email|exists:users,email',
     ]);
 
-    $status = Password::sendResetLink(
-        $request->only('email')
-    );
 
-    if ($status === Password::RESET_LINK_SENT) {
-        return response()->json([
-            'message' => 'Se envió un correo para restablecer tu contraseña.'
-        ]);
-    }
+    PasswordResetCode::where('email', $request->email)->delete();
+
+
+    $codigo = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+
+    PasswordResetCode::create([
+        'email'      => $request->email,
+        'codigo'     => $codigo,
+        'expires_at' => now()->addMinutes(15),
+    ]);
+
+
+    Mail::send([], [], function (Message $message) use ($request, $codigo) {
+        $message->to($request->email)
+            ->subject('Código de verificación — Condominios Mixteco')
+            ->html("
+                <div style='font-family: sans-serif; max-width: 400px; margin: 0 auto;'>
+                    <h2 style='color: #f97316;'>Restablecer contraseña</h2>
+                    <p>Tu código de verificación es:</p>
+                    <div style='background: #f1f5f9; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;'>
+                        <span style='font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #1e293b;'>
+                            {$codigo}
+                        </span>
+                    </div>
+                    <p style='color: #64748b; font-size: 14px;'>Este código expira en 15 minutos.</p>
+                    <p style='color: #64748b; font-size: 14px;'>Si no solicitaste esto, ignora este correo.</p>
+                </div>
+            ");
+    });
 
     return response()->json([
-        'message' => 'No encontramos un usuario con ese correo.'
-    ], 404);
+        'message' => 'Se envió un código de 6 dígitos a tu correo.'
+    ]);
 }
 
 
 public function resetPassword(Request $request)
 {
     $request->validate([
-        'token'    => 'required',
         'email'    => 'required|email',
+        'codigo'   => 'required|string|size:6',
         'password' => 'required|string|min:8|confirmed',
     ]);
 
-    $status = Password::reset(
-        $request->only('email', 'password', 'password_confirmation', 'token'),
-        function (User $user, string $password) {
-            $user->forceFill([
-                'password'       => Hash::make($password),
-                'remember_token' => Str::random(60),
-            ])->save();
+    $resetCode = PasswordResetCode::where('email', $request->email)
+        ->where('codigo', $request->codigo)
+        ->latest()
+        ->first();
 
-
-            $user->tokens()->delete();
-
-            event(new PasswordReset($user));
-        }
-    );
-
-    if ($status === Password::PASSWORD_RESET) {
+    if (!$resetCode) {
         return response()->json([
-            'message' => 'Contraseña restablecida correctamente. Por seguridad se cerraron todas las sesiones.'
-        ]);
+            'message' => 'El código es incorrecto.'
+        ], 400);
     }
 
-    return response()->json([
-        'message' => 'El enlace es inválido o ha expirado.'
-    ], 400);
-}
+    if ($resetCode->estaExpirado()) {
+        $resetCode->delete();
+        return response()->json([
+            'message' => 'El código ha expirado. Solicita uno nuevo.'
+        ], 400);
+    }
 
+    $user = User::where('email', $request->email)->first();
+
+    $user->update([
+        'password' => Hash::make($request->password),
+    ]);
+
+
+    $user->tokens()->delete();
+
+
+    $resetCode->delete();
+
+    return response()->json([
+        'message' => 'Contraseña restablecida correctamente.'
+    ]);
+}
 
     public function cerrarSesion(Request $request, $id)
     {
